@@ -5,7 +5,7 @@ import numpy as np
 from torch.utils.data import Dataset
 
 class OxfordPetDataset(Dataset):
-    def __init__(self, root_dir, txt_name, mode="train", transform=None):
+    def __init__(self, root_dir, txt_path, mode="train", transform=None):
         self.root_dir = root_dir
         self.mode = mode
         self.transform = transform
@@ -14,7 +14,6 @@ class OxfordPetDataset(Dataset):
         self.image_dir = os.path.join(root_dir, "images")
         self.mask_dir = os.path.join(root_dir, "annotations", "trimaps")
         
-        txt_path = os.path.join(root_dir, txt_name)
         with open(txt_path, "r") as f:
             self.filenames = [line.strip() for line in f.readlines() if line.strip()]
             

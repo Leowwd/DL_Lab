@@ -29,8 +29,9 @@ def train(args):
             A.Resize(256, 256),
         ])
     
-    train_dataset = OxfordPetDataset(root_dir=data_root, txt_name="train.txt", mode="train", transform=train_transform)
-    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_name="val.txt", mode="valid", transform=valid_transform)
+    # You can modify the txt paths if needed, but they should be correct as is
+    train_dataset = OxfordPetDataset(root_dir=data_root, txt_path="../dataset/oxford-iiit-pet/train.txt", mode="train", transform=train_transform)
+    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_path="../dataset/oxford-iiit-pet/val.txt", mode="valid", transform=valid_transform)
     train_loader = DataLoader(train_dataset, batch_size=16)
     val_loader = DataLoader(valid_dataset, batch_size=16)
 
@@ -80,7 +81,7 @@ def train(args):
         
         if avg_val_dice > best_dice_score:
             best_dice_score = avg_val_dice
-            torch.save(model.state_dict(), "../saved_models/best_" + args.model.upper() + ".pth")
+            torch.save(model.state_dict(), args.model_path)
 
 if __name__ == "__main__":
     
@@ -88,5 +89,6 @@ if __name__ == "__main__":
     parser.add_argument("--data_root", default="../dataset/oxford-iiit-pet", help="Path to the dataset")
     parser.add_argument("--model", type=str, default="res_unet", choices=["unet", "res_unet"], help="Model architecture to use")
     parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train")
+    parser.add_argument("--model_path", default="../saved_models/best_RES_UNET.pth", help="Path to the saved model weights")
     args = parser.parse_args()
     train(args)
