@@ -30,8 +30,8 @@ def train(args):
         ])
     
     # You can modify the txt paths if needed, but they should be correct as is
-    train_dataset = OxfordPetDataset(root_dir=data_root, txt_path="../dataset/oxford-iiit-pet/train.txt", mode="train", transform=train_transform)
-    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_path="../dataset/oxford-iiit-pet/val.txt", mode="valid", transform=valid_transform)
+    train_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.train_txt, mode="train", transform=train_transform)
+    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.val_txt, mode="valid", transform=valid_transform)
     train_loader = DataLoader(train_dataset, batch_size=16)
     val_loader = DataLoader(valid_dataset, batch_size=16)
 
@@ -88,6 +88,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", default="../dataset/oxford-iiit-pet", help="Path to the dataset")
     parser.add_argument("--model", type=str, default="res_unet", choices=["unet", "res_unet"], help="Model architecture to use")
+    parser.add_argument("--train_txt", default="../dataset/oxford-iiit-pet/train.txt", help="Path to train.txt")
+    parser.add_argument("--val_txt", default="../dataset/oxford-iiit-pet/val.txt", help="Path to val.txt")
     parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train")
     parser.add_argument("--model_path", default="../saved_models/best_RES_UNET.pth", help="Path to the saved model weights")
     args = parser.parse_args()

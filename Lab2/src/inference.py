@@ -20,7 +20,7 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     test_dir = args.data_root
-    txt_path = args.txt_path
+    txt_path = args.test_txt
     test_dataset = OxfordPetDataset(test_dir, txt_path=txt_path, mode="test")
     test_loader = DataLoader(test_dataset)
     
@@ -67,7 +67,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_root", default="../dataset/oxford-iiit-pet", help="Path to the dataset")
-    parser.add_argument("--txt_path", default="../dataset/oxford-iiit-pet/test_res_unet.txt", help="Text file listing test images")
+    parser.add_argument("--test_txt", default="../dataset/oxford-iiit-pet/test_res_unet.txt", help="Path to test.txt")
     parser.add_argument("--model", type=str, default="res_unet", choices=["unet", "res_unet"], help="Model architecture to use")
     parser.add_argument("--model_path", default="../saved_models/best_RES_UNET.pth", help="Path to the saved model weights")
     args = parser.parse_args()
