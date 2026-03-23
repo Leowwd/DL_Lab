@@ -28,8 +28,8 @@ class OxfordPetDataset(Dataset):
         
         if self.mode == "test": 
             if self.transform:
-                augmented = self.transform(image=image_tensor)
-                image_tensor = augmented["image"]
+                augmented = self.transform(image=image)
+                image = augmented["image"]
             else:
                 image = cv2.resize(image, self.target_size)
                 
