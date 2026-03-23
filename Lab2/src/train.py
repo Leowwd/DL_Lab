@@ -3,30 +3,45 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
+import albumentations as A
 from oxford_pet import OxfordPetDataset
 from models.resnet34_unet import ResNet34_UNet
 from models.unet import UNet
 from utils import calculate_dice_score
+import argparse
 
-def train():
+def train(args):
+    data_root = args.data_root
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    data_root = "../dataset/oxford-iiit-pet"
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    train_transform = A.Compose([
+            A.Resize(256, 256),
+            A.HorizontalFlip(),
+            A.Affine(
+                scale=(0.95, 1.05),
+                translate_percent=(-0.05, 0.05),
+                rotate=(-15, 15),
+            ),
+            A.RandomBrightnessContrast(p=0.2),
+        ])
+    
+    valid_transform = A.Compose([
+            A.Resize(256, 256),
+        ])
+    
+    train_dataset = OxfordPetDataset(root_dir=data_root, txt_name="train.txt", mode="train", transform=train_transform)
+    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_name="val.txt", mode="valid", transform=valid_transform)
+    train_loader = DataLoader(train_dataset, batch_size=16)
+    val_loader = DataLoader(valid_dataset, batch_size=16)
 
-    train_dataset = OxfordPetDataset(root_dir=data_root, txt_name='train.txt', mode='train')
-    valid_dataset = OxfordPetDataset(root_dir=data_root, txt_name='val.txt', mode='valid')
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-    val_loader = DataLoader(valid_dataset, batch_size=8, shuffle=False)
-
-    model = UNet().to(device)
+    model = ResNet34_UNet().to(device) if args.model == "res_unet" else UNet().to(device)
 
     criterion = nn.BCEWithLogitsLoss() 
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     os.makedirs("../saved_models", exist_ok=True)
     best_dice_score = 0.0
-    epochs = 10
+    epochs = args.epochs
 
     for epoch in range(epochs):
         model.train()
@@ -65,7 +80,13 @@ def train():
         
         if avg_val_dice > best_dice_score:
             best_dice_score = avg_val_dice
-            torch.save(model.state_dict(), "../saved_models/best_UNet.pth")
-            
+            torch.save(model.state_dict(), "../saved_models/best_" + args.model.upper() + ".pth")
+
 if __name__ == "__main__":
-    train()
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_root", default="../dataset/oxford-iiit-pet", help="Path to the dataset")
+    parser.add_argument("--model", type=str, default="res_unet", choices=["unet", "res_unet"], help="Model architecture to use")
+    parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train")
+    args = parser.parse_args()
+    train(args)
