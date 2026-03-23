@@ -1,0 +1,22 @@
+# AI Usage Disclosure
+Generative AI (Gemini) was utilized solely as a tutoring assistant to clarify deep learning concepts (e.g., PyTorch mini-batch mechanics, Albumentations pipeline, and Kaggle RLE encoding).
+The actual code implementation, debugging process, and final logical flow entirely reflect my own original effort and understanding.
+
+# Data Preprocessing & Augmentation
+Trimap annotations were converted to binary masks by mapping label 1 (pet) to foreground (1), and labels 2/3 to background (0).
+To prevent overfitting during the extended 500-epoch training, on-the-fly data augmentation was implemented using the Albumentations library.
+Techniques included random horizontal flips, affine transformations (scaling, translation, rotation with constant value padding), and brightness/contrast adjustments. For masks, nearest-neighbor interpolation was strictly applied.
+
+# Implementation Highlights
+Both UNet and ResNet34_UNet were implemented from scratch without pretrained weights.
+A major highlight was designing a robust "Up" block in the decoder to handle asymmetrical channel concatenation, ensuring the ResNet34 encoder's skip connections merged flawlessly.
+During inference, predicted 256x256 masks were dynamically resized back to their original dimensions using nearest-neighbor interpolation before RLE encoding to meet Kaggle's exact evaluation criteria.
+
+# Training Strategy
+Models were trained using BCEWithLogitsLoss and the Adam optimizer (lr=1e-4) with a batch size of 16 for 500 epochs.
+Validation Dice Score was calculated after each epoch, and the model state yielding the highest validation score was saved.
+
+# Observations: UNet vs ResNet34_UNet
+While the baseline UNet successfully captured spatial details, the ResNet34_UNet demonstrated superior performance and significantly faster convergence.
+The ResNet34 encoder's deep residual architecture effectively mitigated vanishing gradients, extracting richer and more robust semantic features early on.
+This enabled the decoder to reconstruct sharper pet boundaries, maximizing generalization and accuracy over the 500 epochs.
