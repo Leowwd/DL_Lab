@@ -7,7 +7,14 @@ from oxford_pet import OxfordPetDataset
 from models.unet import UNet
 from models.resnet34_unet import ResNet34_UNet
 import argparse
-from utils import rle_encode
+import numpy as np
+
+def rle_encode(mask):
+    pixels = mask.T.flatten()
+    pixels = np.concatenate([[0], pixels, [0]])
+    runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+    runs[1::2] -= runs[::2]
+    return " ".join(str(x) for x in runs)
 
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

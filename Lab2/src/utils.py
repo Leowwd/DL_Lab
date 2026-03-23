@@ -15,13 +15,6 @@ def calculate_dice_score(pred, target, smooth=1e-5):
     
     return dice.item()
 
-def rle_encode(mask):
-    pixels = mask.T.flatten()
-    pixels = np.concatenate([[0], pixels, [0]])
-    runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
-    runs[1::2] -= runs[::2]
-    return " ".join(str(x) for x in runs)
-
 def visualize_prediction(image, mask, pred, save_path=None):
 
     img_np = image.cpu().detach().numpy()
