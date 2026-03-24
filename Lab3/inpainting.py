@@ -88,7 +88,7 @@ class MaskedImage:
                             drop_last=True,
                             pin_memory=True,
                             shuffle=False)
-        mask_ori =LoadMaskData(root= args.test_mask_path, partial=args.partial)
+        mask_ori =LoadMaskData(root=args.test_mask_path, partial=args.partial)
         self.mask_ori =  DataLoader(mask_ori,
                             batch_size=args.batch_size,
                             num_workers=args.num_workers,
@@ -119,15 +119,15 @@ if __name__ == '__main__':
     
     
 #TODO3 step1-2: modify the path, MVTM parameters
-    parser.add_argument('--load-transformer-ckpt-path', type=str, default='./transformer_checkpoints/epoch_100.pt', help='load ckpt')
+    parser.add_argument('--load-transformer-ckpt-path', type=str, default='./checkpoints/last_ckpt.pt', help='load ckpt')
     
     #dataset path
     parser.add_argument('--test-maskedimage-path', type=str, default='./cat_face/masked_image', help='Path to testing image dataset.')
-    parser.add_argument('--test-mask-path', type=str, default='./mask64', help='Path to testing mask dataset.')
+    parser.add_argument('--test-mask-path', type=str, default='./cat_face/mask64', help='Path to testing mask dataset.')
     #MVTM parameter
-    parser.add_argument('--sweet-spot', type=int, default=0, help='sweet spot: the best step in total iteration')
-    parser.add_argument('--total-iter', type=int, default=0, help='total step for mask scheduling')
-    parser.add_argument('--mask-func', type=str, default='0', help='mask scheduling function')
+    parser.add_argument('--sweet-spot', type=int, default=10, help='sweet spot: the best step in total iteration')
+    parser.add_argument('--total-iter', type=int, default=10, help='total step for mask scheduling')
+    parser.add_argument('--mask-func', type=str, default='cosine', help='mask scheduling function')
 
     args = parser.parse_args()
 
