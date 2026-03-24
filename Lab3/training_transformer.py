@@ -15,28 +15,65 @@ from torch.utils.data import DataLoader
 class TrainTransformer:
     def __init__(self, args, MaskGit_CONFIGS):
         self.model = VQGANTransformer(MaskGit_CONFIGS["model_param"]).to(device=args.device)
-        self.optim,self.scheduler = self.configure_optimizers()
+        self.optim, self.scheduler = self.configure_optimizers()
         self.prepare_training()
         
     @staticmethod
     def prepare_training():
         os.makedirs("transformer_checkpoints", exist_ok=True)
 
-    def train_one_epoch(self):
-        pass
+    def train_one_epoch(self, train_loader, epoch):
+        self.model.train()
+        total_loss = 0
+        
+        pbar = tqdm(train_loader, desc=f"Train Epoch {epoch}")
+        
+        self.optim.zero_grad()
+        for i, images in enumerate(pbar):
+            images = images.to(args.device)
+            logits, z_indices = self.model(images)
 
-    def eval_one_epoch(self):
-        pass
+            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
+            loss = loss / args.accum_grad
+            loss.backward()
+            
+            if (i + 1) % args.accum_grad == 0 or (i + 1) == len(train_loader):
+                self.optim.step()
+                self.optim.zero_grad()
+                
+            total_loss += loss.item() * args.accum_grad
+            pbar.set_postfix({'loss': f'{loss.item() * args.accum_grad:.4f}'})
+            
+        self.scheduler.step()
+            
+        return total_loss / len(train_loader)
+
+    @torch.no_grad()
+    def eval_one_epoch(self, val_loader, epoch):
+        self.model.eval()
+        total_loss = 0
+        
+        pbar = tqdm(val_loader, desc=f"Val Epoch {epoch}")
+        for i, images in enumerate(pbar):
+            images = images.to(args.device)
+            
+            logits, z_indices = self.model(images)
+            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), z_indices.reshape(-1))
+            
+            total_loss += loss.item()
+            pbar.set_postfix({'loss': f'{loss.item():.4f}'})
+            
+        return total_loss / len(val_loader)
 
     def configure_optimizers(self):
-        optimizer = None
-        scheduler = None
-        return optimizer,scheduler
+        lr = args.learning_rate if args.learning_rate > 0 else 1e-4
+        optimizer = torch.optim.AdamW(self.model.transformer.parameters(), lr=lr, weight_decay=1e-4)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
+        return optimizer, scheduler
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="MaskGIT")
-    #TODO2:check your dataset path is correct 
     parser.add_argument('--train_d_path', type=str, default="./cat_face/train/", help='Training Dataset Path')
     parser.add_argument('--val_d_path', type=str, default="./cat_face/val/", help='Validation Dataset Path')
     parser.add_argument('--checkpoint-path', type=str, default='./checkpoints/last_ckpt.pt', help='Path to checkpoint.')
@@ -77,5 +114,19 @@ if __name__ == '__main__':
                                 shuffle=False)
     
 #TODO2 step1-5:    
-    for epoch in range(args.start_from_epoch+1, args.epochs+1):
-        pass
+    for epoch in range(args.start_from_epoch + 1, args.epochs + 1):
+        train_loss = train_transformer.train_one_epoch(train_loader, epoch)
+        val_loss = train_transformer.eval_one_epoch(val_loader, epoch)
+        
+        if train_transformer.scheduler is not None:
+            train_transformer.scheduler.step()
+            current_lr = train_transformer.scheduler.get_last_lr()[0]
+            print(f"Epoch [{epoch}/{args.epochs}] - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, LR: {current_lr:.6f}")
+        else:
+            print(f"Epoch [{epoch}/{args.epochs}] - Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+        
+        if epoch % args.save_per_epoch == 0:
+            os.makedirs("checkpoints", exist_ok=True)
+            torch.save(train_transformer.model.transformer.state_dict(), args.checkpoint_path)
+            torch.save(train_transformer.model.transformer.state_dict(), f"transformer_checkpoints/epoch_{epoch}.pt")
+            print(f"Model saved at epoch {epoch}!")

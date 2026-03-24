@@ -31,7 +31,7 @@ class MaskGIT:
 
 ##TODO3 step1-1: total iteration decoding  
 #mask_b: iteration decoding initial mask, where mask_b is true means mask
-    def inpainting(self,image,mask_b,i): #MakGIT inference
+    def inpainting(self,image, mask_b, i): #MakGIT inference
         maska = torch.zeros(self.total_iter, 3, 16, 16) #save all iterations of masks in latent domain
         imga = torch.zeros(self.total_iter+1, 3, 64, 64)#save all iterations of decoded images
         mean = torch.tensor([0.4868, 0.4341, 0.3844],device=self.device).view(3, 1, 1)  
@@ -41,23 +41,21 @@ class MaskGIT:
 
         self.model.eval()
         with torch.no_grad():
-            z_indices = None #z_indices: masked tokens (b,16*16)
-            mask_num = mask_b.sum() #total number of mask token 
-            z_indices_predict=z_indices
-            mask_bc=mask_b
-            mask_b=mask_b.to(device=self.device)
-            mask_bc=mask_bc.to(device=self.device)
+            z_indices = self.model.encode_to_z(image) # z_indices: masked tokens (b,16*16)
+            mask_num = mask_b.sum() # total number of mask token 
+            z_indices[mask_b] = self.model.mask_token_id
+            z_indices_predict = z_indices.clone()
+            mask_b = mask_b.to(device=self.device)
+            mask_bc = mask_b.clone()
             
-            raise Exception('TODO3 step1-1!')
             ratio = 0
             #iterative decoding for loop design
             #Hint: it's better to save original mask and the updated mask by scheduling separately
             for step in range(self.total_iter):
                 if step == self.sweet_spot:
                     break
-                ratio = None #this should be updated
-    
-                z_indices_predict, mask_bc = self.model.inpainting()
+                ratio = step / self.total_iter
+                z_indices_predict, mask_bc = self.model.inpainting(z_indices_predict, mask_bc, ratio)
 
                 #static method yon can modify or not, make sure your visualization results are correct
                 mask_i=mask_bc.view(1, 16, 16)
@@ -121,7 +119,7 @@ if __name__ == '__main__':
     
     
 #TODO3 step1-2: modify the path, MVTM parameters
-    parser.add_argument('--load-transformer-ckpt-path', type=str, default='', help='load ckpt')
+    parser.add_argument('--load-transformer-ckpt-path', type=str, default='./transformer_checkpoints/epoch_100.pt', help='load ckpt')
     
     #dataset path
     parser.add_argument('--test-maskedimage-path', type=str, default='./cat_face/masked_image', help='Path to testing image dataset.')
