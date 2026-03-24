@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import albumentations as A
 from oxford_pet import OxfordPetDataset
 from models.resnet34_unet import ResNet34_UNet
@@ -37,12 +38,13 @@ def train(args):
 
     model = ResNet34_UNet().to(device) if args.model == "res_unet" else UNet().to(device)
 
-    criterion = nn.BCEWithLogitsLoss() 
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
     os.makedirs("../saved_models", exist_ok=True)
     best_dice_score = 0.0
     epochs = args.epochs
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
 
     for epoch in range(epochs):
         model.train()
@@ -82,6 +84,8 @@ def train(args):
         if avg_val_dice > best_dice_score:
             best_dice_score = avg_val_dice
             torch.save(model.state_dict(), args.model_path)
+            
+        scheduler.step()
 
 if __name__ == "__main__":
     
@@ -90,7 +94,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="res_unet", choices=["unet", "res_unet"], help="Model architecture to use")
     parser.add_argument("--train_txt", default="../dataset/oxford-iiit-pet/train.txt", help="Path to train.txt")
     parser.add_argument("--val_txt", default="../dataset/oxford-iiit-pet/val.txt", help="Path to val.txt")
-    parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train")
+    parser.add_argument("--epochs", type=int, default=500, help="Number of epochs to train")
     parser.add_argument("--model_path", default="../saved_models/best_RES_UNET.pth", help="Path to the saved model weights")
     args = parser.parse_args()
     train(args)

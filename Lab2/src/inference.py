@@ -34,9 +34,15 @@ def main(args):
         for i, images in enumerate(test_loader):
             images = images.to(device)
             logits = model(images)
-            
             probs = torch.sigmoid(logits)
-            preds = (probs > 0.5).float()
+
+            images_flipped = torch.flip(images, dims=[3])
+            logits_flipped = model(images_flipped)
+            probs_flipped = torch.sigmoid(logits_flipped)
+            probs_flipped_back = torch.flip(probs_flipped, dims=[3])
+            probs_final = (probs + probs_flipped_back) / 2.0
+
+            preds = (probs_final > 0.5).float()
             
             pred_mask = preds.squeeze().cpu().numpy()
             
