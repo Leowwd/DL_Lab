@@ -36,7 +36,7 @@ class OxfordPetDataset(Dataset):
             image = image.astype(np.float32) / 255.0
             image = (image - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
             image = np.transpose(image, (2, 0, 1))
-            return torch.from_numpy(image)
+            return torch.from_numpy(image).float()
         
         mask_path = os.path.join(self.mask_dir, f"{filename}.png")
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)        

@@ -44,7 +44,7 @@ def main(args):
 
             preds = (probs_final > 0.5).float()
             
-            pred_mask = preds.squeeze().cpu().numpy()
+            pred_mask = preds.squeeze().cpu().numpy().astype(np.uint8)
             
             filename = test_dataset.filenames[i]
             
