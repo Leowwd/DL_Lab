@@ -27,7 +27,7 @@ def train(args):
         ])
     
     valid_transform = A.Compose([
-            A.Resize(256, 256),
+            A.Resize(256, 256)
         ])
     
     # You can modify the txt paths if needed, but they should be correct as is
