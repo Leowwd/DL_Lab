@@ -30,7 +30,14 @@ def evaluate(args):
             
             if i < 5:
                 save_name = f"../saved_models/val_vis_{i}.png"
-                visualize_prediction(images[0], masks[0], preds[0], save_path=save_name)
+                img_tensor = images[0].cpu() 
+                
+                mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+                std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+                img_denorm = img_tensor * std + mean
+                img_denorm = torch.clamp(img_denorm, 0, 1)
+
+                visualize_prediction(img_denorm, masks[0], preds[0], save_path=save_name)
                 print(f"Saved visualization to {save_name}")
             
     print(f"Dice Score: {total_dice / len(val_loader):.4f}")
