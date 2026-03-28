@@ -1,26 +1,15 @@
 # AI Usage Disclosure
-Gemini acted solely as a conceptual tutor.
-Code implementation, debugging, and logical flow are entirely my original work.
+Gemini acted as a conceptual tutor. The code and logic remain entirely my original work.
 
 # Data Preprocessing & Augmentation
-Trimaps were mapped to binary masks (pet=1, background=0).
-To prevent overfitting, albumentations was used for Resize(256, 256), horizontal flips, affine transforms, and brightness adjustments.
-Crucially, to ensure strict distribution consistency across train/val/test phases, ImageNet standardization was implemented directly inside the getitem method.
-Mask dimensions were also explicitly expanded to (1, H, W) to perfectly align with logits, preventing PyTorch broadcasting errors during loss calculation.
+Trimaps were mapped to binary masks. To aggressively prevent overfitting over 500 epochs, albumentations was used for Resize(256), horizontal flips, affine transforms, and brightness adjustments. Crucially, to simulate biological shape variations as mentioned in U-Net, I applied ElasticTransform (alpha=120, sigma=12), producing organic warps. ImageNet standardization was implemented directly inside __getitem__() to guarantee train/val/test consistency. Masks were explicitly expanded to (1, H, W) to perfectly align with logits.
 
 # Model Implementation
-Both models were built from scratch and implemented completely independently.
-To strictly adhere to the original 2015 U-Net, its architecture entirely excludes BatchNorm and uses unpadded convolutions.
-I successfully implemented the paper's "overlap-tile strategy" using reflection padding to expand inputs, allowing the crop-and-concatenate method to flawlessly align feature maps and output exact 256x256 masks.
-Conversely, the modern ResNet34_UNet utilizes its own independent blocks with padded convolutions and BatchNorm, featuring a dynamic "Up" block to seamlessly handle asymmetrical concatenations from the residual encoder.
-During inference, predicted masks were resized back via nearest-neighbor interpolation.
+Models were built independently from scratch. The baseline U-Net strictly adheres to the 2015 paper, excluding BatchNorm and using unpadded convolutions. I implemented the "overlap-tile strategy" via reflection padding, allowing exact 256x256 crop-and-concatenate alignment. Conversely, ResNet34_UNet utilizes padded convolutions, BatchNorm, and custom "Up" blocks for asymmetrical residual concatenation. During inference, predictions were dynamically resized back to original dimensions via nearest-neighbor interpolation.
 
 # Training Strategy
-Models were optimized using BCEWithLogitsLoss and Adam Optimizer over 500 epochs.
-I integrated a CosineAnnealingLR scheduler.
-This scheduling strategy allowed the model to learn rapidly in the early stages and smoothly decay the learning rate later, enabling fine-grained convergence into the optimal local minimum.
+Models were trained using BCEWithLogitsLoss and Adam Optimizer for 500 epochs. A CosineAnnealingLR scheduler was integrated to enable fast initial learning followed by smooth, fine-grained convergence.
 
 # Observations
-ResNet34_UNet significantly outperformed the baseline UNet.
-Its deep residual encoder effectively mitigated vanishing gradients, extracting richer and more robust semantic features early on.
+ResNet34_UNet significantly outperformed the baseline. Its deep residual encoder successfully mitigated vanishing gradients and extracted robust semantic features, yielding sharper pet boundaries and superior generalization on the unseen test set.
 
