@@ -16,7 +16,7 @@ def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     train_transform = A.Compose([
-            A.Resize(256, 256),
+            A.Resize(192, 192),
             A.HorizontalFlip(),
             A.Affine(
                 scale=(0.95, 1.05),
@@ -28,14 +28,14 @@ def train(args):
         ])
     
     valid_transform = A.Compose([
-            A.Resize(256, 256)
+            A.Resize(192, 192)
         ])
     
     # You can modify the txt paths if needed, but they should be correct as is
     train_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.train_txt, mode="train", transform=train_transform)
     valid_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.val_txt, mode="valid", transform=valid_transform)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(valid_dataset, batch_size=32)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    val_loader = DataLoader(valid_dataset, batch_size=16)
 
     model = ResNet34_UNet().to(device) if args.model == "res_unet" else UNet().to(device)
 

@@ -9,7 +9,7 @@ class OxfordPetDataset(Dataset):
         self.root_dir = root_dir
         self.mode = mode
         self.transform = transform
-        self.target_size = (256, 256)
+        self.target_size = (192, 192)
         
         self.image_dir = os.path.join(root_dir, "images")
         self.mask_dir = os.path.join(root_dir, "annotations", "trimaps")

@@ -23,7 +23,6 @@ def visualize_prediction(image, mask, pred, save_path=None):
     
     img_np = np.transpose(img_np, (1, 2, 0))
     
-
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     
     axes[0].imshow(img_np)

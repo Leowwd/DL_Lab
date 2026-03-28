@@ -74,8 +74,8 @@ class UNet(nn.Module):
         out = self.up2(out, x3)
         out = self.up3(out, x2)
         out = self.up4(out, x1)
-        logits = self.outConv(out) # (B, 1, 260, 260)
+        logits = self.outConv(out) # (B, 1, 196, 196)
         
-        logits = logits[:, :, 2:258, 2:258]
+        logits = logits[:, :, 2:194, 2:194]
         
         return logits
