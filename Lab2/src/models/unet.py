@@ -1,15 +1,14 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, bias=True),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, bias=True),
             nn.ReLU(inplace=True),
         )
 
@@ -36,7 +35,13 @@ class Up(nn.Module):
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
-        x = torch.cat([x2, x1], dim=1)
+        
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+        
+        x2_cropped = x2[:, :, diffY // 2 : diffY // 2 + x1.size()[2], diffX // 2 : diffX // 2 + x1.size()[3]]
+        
+        x = torch.cat([x2_cropped, x1], dim=1)
         return self.conv(x)
 
 class UNet(nn.Module):
@@ -57,13 +62,20 @@ class UNet(nn.Module):
         self.outConv = nn.Conv2d(64, n_classes, kernel_size=1)
 
     def forward(self, x):
-        x1 = self.inConv(x)
+        x_padded = F.pad(x, (94, 94, 94, 94), mode='reflect')
+        
+        x1 = self.inConv(x_padded)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-        return self.outConv(x)
+        
+        out = self.up1(x5, x4)
+        out = self.up2(out, x3)
+        out = self.up3(out, x2)
+        out = self.up4(out, x1)
+        logits = self.outConv(out) # (B, 1, 260, 260)
+        
+        logits = logits[:, :, 2:258, 2:258]
+        
+        return logits
