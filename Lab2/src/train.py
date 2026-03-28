@@ -23,6 +23,7 @@ def train(args):
                 translate_percent=(-0.05, 0.05),
                 rotate=(-15, 15),
             ),
+            A.ElasticTransform(alpha=120, sigma=12),
             A.RandomBrightnessContrast(p=0.2),
         ])
     
@@ -33,8 +34,8 @@ def train(args):
     # You can modify the txt paths if needed, but they should be correct as is
     train_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.train_txt, mode="train", transform=train_transform)
     valid_dataset = OxfordPetDataset(root_dir=data_root, txt_path=args.val_txt, mode="valid", transform=valid_transform)
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-    val_loader = DataLoader(valid_dataset, batch_size=16)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(valid_dataset, batch_size=32)
 
     model = ResNet34_UNet().to(device) if args.model == "res_unet" else UNet().to(device)
 
