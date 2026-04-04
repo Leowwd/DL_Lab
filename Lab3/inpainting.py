@@ -21,13 +21,13 @@ class MaskGIT:
         self.mask_func=args.mask_func
         self.sweet_spot=args.sweet_spot
         self.device=args.device
+        self.out_dir=args.out_dir
         self.prepare()
 
-    @staticmethod
-    def prepare():
-        os.makedirs("test_results", exist_ok=True)
-        os.makedirs("mask_scheduling", exist_ok=True)
-        os.makedirs("imga", exist_ok=True)
+    def prepare(self):
+        os.makedirs(os.path.join(self.out_dir, "test_results"), exist_ok=True)
+        os.makedirs(os.path.join(self.out_dir, "mask_scheduling"), exist_ok=True)
+        os.makedirs(os.path.join(self.out_dir, "imga"), exist_ok=True)
 
 ##TODO3 step1-1: total iteration decoding  
 #mask_b: iteration decoding initial mask, where mask_b is true means mask
@@ -55,7 +55,8 @@ class MaskGIT:
                 if step == self.sweet_spot:
                     break
                 ratio = step / self.total_iter
-                z_indices_predict, mask_bc = self.model.inpainting(z_indices_predict, mask_bc, ratio)
+                z_indices_predict[mask_bc] = self.model.mask_token_id
+                z_indices_predict, mask_bc = self.model.inpainting(z_indices_predict, mask_bc, ratio, mask_num)
 
                 #static method yon can modify or not, make sure your visualization results are correct
                 mask_i=mask_bc.view(1, 16, 16)
@@ -71,11 +72,11 @@ class MaskGIT:
                 imga[step+1]=dec_img_ori #get decoded image
 
             ##decoded image of the sweet spot only, the test_results folder path will be the --predicted-path for fid score calculation
-            vutils.save_image(dec_img_ori, os.path.join("test_results", f"image_{i:03d}.png"), nrow=1) 
+            vutils.save_image(dec_img_ori, os.path.join(self.out_dir, "test_results", f"image_{i:03d}.png"), nrow=1) 
 
             #demo score 
-            vutils.save_image(maska, os.path.join("mask_scheduling", f"test_{i}.png"), nrow=10) 
-            vutils.save_image(imga, os.path.join("imga", f"test_{i}.png"), nrow=7)
+            vutils.save_image(maska, os.path.join(self.out_dir, "mask_scheduling", f"test_{i}.png"), nrow=10) 
+            vutils.save_image(imga, os.path.join(self.out_dir, "imga", f"test_{i}.png"), nrow=7)
 
 
 
@@ -128,11 +129,13 @@ if __name__ == '__main__':
     parser.add_argument('--sweet-spot', type=int, default=10, help='sweet spot: the best step in total iteration')
     parser.add_argument('--total-iter', type=int, default=10, help='total step for mask scheduling')
     parser.add_argument('--mask-func', type=str, default='cosine', help='mask scheduling function')
-
+    parser.add_argument('--out-dir', type=str, default='.', help='Directory to save the outputs')
+    
     args = parser.parse_args()
 
     t=MaskedImage(args)
     MaskGit_CONFIGS = yaml.safe_load(open(args.MaskGitConfig, 'r'))
+    MaskGit_CONFIGS["model_param"]["gamma_type"]=args.mask_func
     maskgit = MaskGIT(args, MaskGit_CONFIGS)
 
     i=0
@@ -142,6 +145,3 @@ if __name__ == '__main__':
         mask_b=t.get_mask_latent(mask)       
         maskgit.inpainting(image,mask_b,i)
         i+=1
-        
-
-

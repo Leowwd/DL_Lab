@@ -84,8 +84,11 @@ class MaskGit(nn.Module):
     
 ##TODO3 step1-1: define one iteration decoding   
     @torch.no_grad()
-    def inpainting(self, z_indices, mask, ratio):
-        logits = self.transformer(z_indices)
+    def inpainting(self, z_indices, mask, ratio, mask_num):
+        z_indices_masked = z_indices.clone()
+        z_indices_masked[mask] = self.mask_token_id
+        
+        logits = self.transformer(z_indices_masked)
         probs = torch.softmax(logits, dim=-1)
         z_indices_predict_prob, z_indices_predict = torch.max(probs, dim=-1)
 
@@ -96,15 +99,13 @@ class MaskGit(nn.Module):
         confidence[~mask] = float('inf')
         _, sorted_indices = torch.sort(confidence, dim=-1, descending=False)
         
-        # define how much the iteration remain predicted tokens by mask scheduling
         mask_ratio = self.gamma(ratio)
-        num_masked = math.floor(mask_ratio * self.num_image_tokens)
+        num_masked = math.floor(mask_ratio * mask_num)
         
         mask_bc = torch.zeros_like(mask)
         for b in range(z_indices.shape[0]):
             mask_bc[b, sorted_indices[b, :num_masked]] = True
             
-        ## At the end of the decoding process, add back the original(non-masked) token values
         z_indices_predict[~mask] = z_indices[~mask]
         
         return z_indices_predict, mask_bc
@@ -112,7 +113,3 @@ class MaskGit(nn.Module):
 __MODEL_TYPE__ = {
     "MaskGit": MaskGit
 }
-    
-
-
-        

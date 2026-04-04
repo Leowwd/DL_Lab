@@ -67,8 +67,16 @@ class TrainTransformer:
 
     def configure_optimizers(self):
         lr = args.learning_rate if args.learning_rate > 0 else 1e-4
+        total_epochs = args.epochs
+        warmup_epochs = max(1, int(0.1 * total_epochs))
         optimizer = torch.optim.AdamW(self.model.transformer.parameters(), lr=lr, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=1e-6)
+        warmup_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1e-3, total_iters=warmup_epochs)
+        cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=(total_epochs - warmup_epochs), eta_min=1e-6)
+        scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer, 
+        schedulers=[warmup_scheduler, cosine_scheduler], 
+        milestones=[warmup_epochs]
+        )
         return optimizer, scheduler
 
 
@@ -85,7 +93,7 @@ if __name__ == '__main__':
 
     #you can modify the hyperparameters 
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs to train.')
-    parser.add_argument('--save-per-epoch', type=int, default=1, help='Save CKPT per ** epochs(defcault: 1)')
+    parser.add_argument('--save-per-epoch', type=int, default=10, help='Save CKPT per ** epochs(defcault: 1)')
     parser.add_argument('--start-from-epoch', type=int, default=0, help='Number of epochs to train.')
     parser.add_argument('--ckpt-interval', type=int, default=10, help='Number of epochs to train.')
     parser.add_argument('--learning-rate', type=float, default=1e-4, help='Learning rate.')
@@ -114,6 +122,7 @@ if __name__ == '__main__':
                                 shuffle=False)
     
 #TODO2 step1-5:    
+    best_val_loss = float('inf')
     for epoch in range(args.start_from_epoch + 1, args.epochs + 1):
         train_loss = train_transformer.train_one_epoch(train_loader, epoch)
         val_loss = train_transformer.eval_one_epoch(val_loader, epoch)
@@ -130,3 +139,9 @@ if __name__ == '__main__':
             torch.save(train_transformer.model.transformer.state_dict(), args.checkpoint_path)
             torch.save(train_transformer.model.transformer.state_dict(), f"transformer_checkpoints/epoch_{epoch}.pt")
             print(f"Model saved at epoch {epoch}!")
+            
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            os.makedirs("checkpoints", exist_ok=True)
+            torch.save(train_transformer.model.transformer.state_dict(), "checkpoints/best_ckpt.pt")
+            print(f"Best model saved at epoch {epoch} with val loss: {best_val_loss:.4f}!")
