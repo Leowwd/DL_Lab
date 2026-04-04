@@ -31,7 +31,7 @@ class MaskGIT:
 
 ##TODO3 step1-1: total iteration decoding  
 #mask_b: iteration decoding initial mask, where mask_b is true means mask
-    def inpainting(self,image, mask_b, i): #MakGIT inference
+    def inpainting(self, image, mask, mask_b, i): #MakGIT inference
         maska = torch.zeros(self.total_iter, 3, 16, 16) #save all iterations of masks in latent domain
         imga = torch.zeros(self.total_iter+1, 3, 64, 64)#save all iterations of decoded images
         mean = torch.tensor([0.4868, 0.4341, 0.3844],device=self.device).view(3, 1, 1)  
@@ -70,9 +70,11 @@ class MaskGIT:
                 decoded_img=self.model.vqgan.decode(z_q)
                 dec_img_ori=(decoded_img[0]*std)+mean
                 imga[step+1]=dec_img_ori #get decoded image
+                
+            blended_img = mask[0] * ori + (1 - mask[0]) * dec_img_ori
 
             ##decoded image of the sweet spot only, the test_results folder path will be the --predicted-path for fid score calculation
-            vutils.save_image(dec_img_ori, os.path.join(self.out_dir, "test_results", f"image_{i:03d}.png"), nrow=1) 
+            vutils.save_image(blended_img, os.path.join(self.out_dir, "test_results", f"image_{i:03d}.png"), nrow=1) 
 
             #demo score 
             vutils.save_image(maska, os.path.join(self.out_dir, "mask_scheduling", f"test_{i}.png"), nrow=10) 
@@ -143,5 +145,5 @@ if __name__ == '__main__':
         image=image.to(device=args.device)
         mask=mask.to(device=args.device)
         mask_b=t.get_mask_latent(mask)       
-        maskgit.inpainting(image,mask_b,i)
+        maskgit.inpainting(image, mask, mask_b, i)
         i+=1
