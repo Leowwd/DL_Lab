@@ -22,14 +22,13 @@ from math import log10
 
 def Generate_PSNR(imgs1, imgs2, data_range=1.):
     """PSNR for torch tensor"""
-    mse = nn.functional.mse_loss(imgs1, imgs2) # wrong computation for batch size > 1
+    mse = torch.mean((imgs1 - imgs2) ** 2, dim=[1, 2, 3])
     psnr = 20 * log10(data_range) - 10 * torch.log10(mse)
-    return psnr
+    return torch.mean(psnr)
 
 
 def kl_criterion(mu, logvar, batch_size):
-  KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-  KLD /= batch_size  
+  KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
   return KLD
 
 
@@ -100,7 +99,7 @@ class VAE_Model(nn.Module):
         # Generative model
         self.Generator            = Generator(input_nc=args.D_out_dim, output_nc=3)
         
-        self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
+        self.optim      = optim.Adam(self.parameters(), lr=self.args.lr) if self.args.optim == "Adam" else optim.AdamW(self.parameters(), lr=self.args.lr)
         self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
@@ -120,16 +119,27 @@ class VAE_Model(nn.Module):
         pass
     
     def training_stage(self):
-        best_val_loss = float('inf')
+        best_val_psnr = -1.0  # PSNR is higher the better
+        
+        # Tracking metrics for the Report
+        self.metrics = {
+            "train_loss": [], "val_loss": [], "val_psnr": [], "tfr": [], "beta": []
+        }
+        
+        import json
         
         for i in range(self.args.num_epoch):
             train_loader = self.train_dataloader()
-            adapt_TeacherForcing = True if random.random() < self.tfr else False
+            
+            epoch_train_losses = []
             
             for (img, label) in (pbar := tqdm(train_loader, ncols=120)):
+                adapt_TeacherForcing = True if random.random() < self.tfr else False
+                
                 img = img.to(self.args.device)
                 label = label.to(self.args.device)
                 loss = self.training_one_step(img, label, adapt_TeacherForcing)
+                epoch_train_losses.append(loss.item())
                 
                 beta = self.kl_annealing.get_beta()
                 if adapt_TeacherForcing:
@@ -137,11 +147,21 @@ class VAE_Model(nn.Module):
                 else:
                     self.tqdm_bar('train [TeacherForcing: OFF, {:.1f}], beta: {}'.format(self.tfr, beta), pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
             
-            val_loss = self.eval()
+            val_loss, val_psnr = self.eval()
             
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                print(f"New best model found! val_loss: {best_val_loss:.4f}, saving to best_model.ckpt")
+            # Save metrics to JSON
+            self.metrics["train_loss"].append(sum(epoch_train_losses)/len(epoch_train_losses))
+            self.metrics["val_loss"].append(val_loss)
+            self.metrics["val_psnr"].append(val_psnr)
+            self.metrics["tfr"].append(self.tfr)
+            self.metrics["beta"].append(beta)
+            
+            with open(os.path.join(self.args.save_root, "metrics.json"), "w") as f:
+                json.dump(self.metrics, f)
+            
+            if val_psnr > best_val_psnr:
+                best_val_psnr = val_psnr
+                print(f"New best model! val_psnr={best_val_psnr:.4f} @ epoch {self.current_epoch} -> best_model.ckpt")
                 self.save(os.path.join(self.args.save_root, "best_model.ckpt"))
                 
             self.current_epoch += 1
@@ -154,17 +174,33 @@ class VAE_Model(nn.Module):
     def eval(self):
         val_loader = self.val_dataloader()
         total_loss = 0.0
+        total_psnr = 0.0
         for (img, label) in (pbar := tqdm(val_loader, ncols=120)):
             img = img.to(self.args.device)
             label = label.to(self.args.device)
-            loss = self.val_one_step(img, label)
+            loss, avg_psnr, _ = self.val_one_step(img, label)
             self.tqdm_bar('val', pbar, loss.detach().cpu(), lr=self.scheduler.get_last_lr()[0])
             total_loss += loss.item()
-        return total_loss / len(val_loader)
+            total_psnr += avg_psnr
+        avg_psnr_epoch = total_psnr / len(val_loader)
+        print(f"[Epoch {self.current_epoch}] Avg Val PSNR: {avg_psnr_epoch:.4f} dB")
+        return total_loss / len(val_loader), avg_psnr_epoch
     
     def training_one_step(self, img, label, adapt_TeacherForcing):
         img = img.permute(1, 0, 2, 3, 4)      # (B, T, C, H, W) -> (T, B, C, H, W)
         label = label.permute(1, 0, 2, 3, 4)  # (B, T, C, H, W) -> (T, B, C, H, W)
+        
+        if random.random() > 0.5:
+            img = torch.flip(img, dims=[-1])    # flip W dimension
+            label = torch.flip(label, dims=[-1])
+        
+        # ColorJitter on img ONLY (label colors are semantic, must not be changed)
+        if random.random() > 0.5:
+            # Same jitter params applied to ALL frames in the sequence
+            brightness = 1.0 + random.uniform(-0.2, 0.2)
+            contrast   = 1.0 + random.uniform(-0.2, 0.2)
+            img = torch.clamp(img * brightness, 0, 1)
+            img = torch.clamp((img - 0.5) * contrast + 0.5, 0, 1)
         
         seq_len = img.shape[0]
         mse_loss = 0
@@ -192,7 +228,6 @@ class VAE_Model(nn.Module):
             # Decoder fusion: combine prev frame features, label features, and latent z
             decoded_feat = self.Decoder_Fusion(prev_frame_feat, label_feat, z)
             
-            # Generate the frame
             generated_frame = self.Generator(decoded_feat)
             
             # Update last frame for autoregressive mode
@@ -217,12 +252,13 @@ class VAE_Model(nn.Module):
         
         seq_len = img.shape[0]
         mse_loss = 0
+        psnr_list = []  # collect per-frame PSNR
         
         # Start with the first ground truth frame
         last_frame = img[0]
         
-        decoded_frame_list = [img[0].cpu()]
-        label_list = []
+        # store tensors on GPU (.detach() only, no .cpu() inside loop)
+        decoded_frame_list = [img[0].detach()]
         
         for t in range(1, seq_len):
             label_feat = self.label_transformation(label[t])
@@ -236,20 +272,25 @@ class VAE_Model(nn.Module):
             # Decoder fusion
             decoded_feat = self.Decoder_Fusion(prev_frame_feat, label_feat, z)
             
-            # Generate the frame
             generated_frame = self.Generator(decoded_feat)
             last_frame = generated_frame
             
             mse_loss += self.mse_criterion(generated_frame, img[t])
             
-            decoded_frame_list.append(generated_frame.cpu())
-            label_list.append(label[t].cpu())
+            # Compute per-frame PSNR
+            psnr_list.append(Generate_PSNR(generated_frame.clamp(0, 1), img[t]).item())
+            
+            # keep on GPU
+            decoded_frame_list.append(generated_frame.detach())
         
+        # Single bulk transfer to CPU after loop
         if self.args.store_visualization and self.current_epoch % 5 == 0:
-            generated_frames = stack(decoded_frame_list).permute(1, 0, 2, 3, 4)
-            self.make_gif(generated_frames[0], os.path.join(self.args.save_root, f'epoch={self.current_epoch}_val.gif'))
+            frames_cpu = stack(decoded_frame_list).permute(1, 0, 2, 3, 4).cpu()
+            self.make_gif(frames_cpu[0], os.path.join(self.args.save_root,
+                          f'epoch={self.current_epoch}_val.gif'))
         
-        return mse_loss
+        avg_psnr = sum(psnr_list) / len(psnr_list)
+        return mse_loss, avg_psnr, psnr_list
                 
     def make_gif(self, images_list, img_name):
         new_list = []
@@ -302,7 +343,7 @@ class VAE_Model(nn.Module):
     def save(self, path):
         torch.save({
             "state_dict": self.state_dict(),
-            "optimizer": self.state_dict(),  
+            "optimizer": self.optim.state_dict(),  
             "lr"        : self.scheduler.get_last_lr()[0],
             "tfr"       :   self.tfr,
             "last_epoch": self.current_epoch
@@ -316,7 +357,7 @@ class VAE_Model(nn.Module):
             self.args.lr = checkpoint['lr']
             self.tfr = checkpoint['tfr']
             
-            self.optim      = optim.Adam(self.parameters(), lr=self.args.lr)
+            self.optim      = optim.Adam(self.parameters(), lr=self.args.lr) if self.args.optim == "Adam" else optim.AdamW(self.parameters(), lr=self.args.lr)
             self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
