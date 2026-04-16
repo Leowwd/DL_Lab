@@ -100,7 +100,7 @@ class VAE_Model(nn.Module):
         self.Generator            = Generator(input_nc=args.D_out_dim, output_nc=3)
         
         self.optim      = optim.Adam(self.parameters(), lr=self.args.lr) if self.args.optim == "Adam" else optim.AdamW(self.parameters(), lr=self.args.lr)
-        self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 5], gamma=0.1)
+        self.scheduler  = optim.lr_scheduler.CosineAnnealingLR(self.optim, T_max=self.args.num_epoch, eta_min=1e-6)
         self.kl_annealing = kl_annealing(args, current_epoch=0)
         self.mse_criterion = nn.MSELoss()
         self.current_epoch = 0
@@ -358,7 +358,7 @@ class VAE_Model(nn.Module):
             self.tfr = checkpoint['tfr']
             
             self.optim      = optim.Adam(self.parameters(), lr=self.args.lr) if self.args.optim == "Adam" else optim.AdamW(self.parameters(), lr=self.args.lr)
-            self.scheduler  = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[2, 4], gamma=0.1)
+            self.scheduler  = optim.lr_scheduler.CosineAnnealingLR(self.optim, T_max=self.args.num_epoch, eta_min=1e-6)
             self.kl_annealing = kl_annealing(self.args, current_epoch=checkpoint['last_epoch'])
             self.current_epoch = checkpoint['last_epoch']
 
